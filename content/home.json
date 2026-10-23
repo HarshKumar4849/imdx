@@ -1,0 +1,9 @@
+{
+  "navigation": [
+    { "label": "About us", "href": "#" },
+    { "label": "Kits", "href": "#" },
+    { "label": "Developers hub", "href": "#" },
+    { "label": "Community", "href": "#" }
+  ],
+  "primaryAction": { "label": "Join the community", "href": "#" }
+}
