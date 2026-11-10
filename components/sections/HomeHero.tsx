@@ -50,6 +50,9 @@ const standardsCards = [
 ];
 export function HomeHero() {
   const [expanded, setExpanded] = useState(false);
+  const [watchingVideo, setWatchingVideo] = useState(false);
+  const backgroundVideoRef = useRef<HTMLVideoElement>(null);
+  const fullVideoRef = useRef<HTMLVideoElement>(null);
   const clickedTabRef = useRef<string | null>(null);
   const clickedTabReachedRef = useRef(false);
   const transitionRef = useRef<HTMLElement>(null);
@@ -61,6 +64,47 @@ export function HomeHero() {
   const lowerWingRef = useRef<SVGPathElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const footerPixelsRef = useRef<HTMLCanvasElement>(null);
+
+  const openFullVideo = () => {
+    backgroundVideoRef.current?.pause();
+    const video = fullVideoRef.current;
+    if (video) {
+      video.muted = false;
+      video.currentTime = 0;
+      void video.play().catch(() => undefined);
+    }
+    setWatchingVideo(true);
+  };
+
+  const closeFullVideo = () => {
+    fullVideoRef.current?.pause();
+    setWatchingVideo(false);
+    const backgroundVideo = backgroundVideoRef.current;
+    if (backgroundVideo) {
+      backgroundVideo.muted = true;
+      void backgroundVideo.play().catch(() => undefined);
+    }
+  };
+
+  useEffect(() => {
+    if (!watchingVideo) return;
+    const video = fullVideoRef.current;
+    if (!video) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      video.pause();
+      setWatchingVideo(false);
+      const backgroundVideo = backgroundVideoRef.current;
+      if (backgroundVideo) {
+        backgroundVideo.muted = true;
+        void backgroundVideo.play().catch(() => undefined);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [watchingVideo]);
 
   useEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
@@ -441,6 +485,7 @@ export function HomeHero() {
        <div className="page-transition-sticky">
       <section className="hero-screen" aria-label="IMDX introduction">
         <video
+          ref={backgroundVideoRef}
           className="display-video"
           autoPlay
           loop
@@ -465,7 +510,22 @@ export function HomeHero() {
             <p className="imdx-summary">{summary}</p>
           </div>
         </div>
+        <div className="hero-video-controls">
+          <button className="hero-video-button hero-video-button-primary" type="button" onClick={openFullVideo}>
+            Watch complete video
+          </button>
+        </div>
       </section>
+        <div className={`video-modal-backdrop${watchingVideo ? " is-open" : ""}`} aria-hidden={!watchingVideo} role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeFullVideo();
+        }}>
+          <section className="video-modal" role="dialog" aria-modal="true" aria-label="Complete IMDX video">
+            <button className="video-modal-close" type="button" onClick={closeFullVideo} aria-label="Close video">×</button>
+            <video ref={fullVideoRef} className="video-modal-player" controls playsInline preload="auto" onEnded={closeFullVideo}>
+              <source src="/videos/tractus-x-community-days.mp4" type="video/mp4" />
+            </video>
+          </section>
+        </div>
       <section className="imdx-page imdx-page-rising" aria-hidden="true">
         {pageContent}
       </section>
