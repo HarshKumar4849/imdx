@@ -51,6 +51,9 @@ const standardsCards = [
 export function HomeHero() {
   const [expanded, setExpanded] = useState(false);
   const [watchingVideo, setWatchingVideo] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const pendingVideoPlayRef = useRef(false);
   const backgroundVideoRef = useRef<HTMLVideoElement>(null);
   const fullVideoRef = useRef<HTMLVideoElement>(null);
   const clickedTabRef = useRef<string | null>(null);
@@ -67,17 +70,59 @@ export function HomeHero() {
 
   const openFullVideo = () => {
     backgroundVideoRef.current?.pause();
+    setVideoError(null);
+    setVideoLoading(true);
+    pendingVideoPlayRef.current = true;
+    setWatchingVideo(true);
     const video = fullVideoRef.current;
     if (video) {
       video.muted = false;
-      video.currentTime = 0;
-      void video.play().catch(() => undefined);
+      if (video.readyState > HTMLMediaElement.HAVE_NOTHING) video.currentTime = 0;
+      if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        pendingVideoPlayRef.current = false;
+        void video.play().catch(() => {
+          setVideoLoading(false);
+          setVideoError("Playback didn’t start. Try the play button below.");
+        });
+      } else if (video.networkState === HTMLMediaElement.NETWORK_EMPTY) {
+        video.load();
+      }
     }
-    setWatchingVideo(true);
+  };
+
+  const retryFullVideo = () => {
+    const video = fullVideoRef.current;
+    if (!video) return;
+    setVideoError(null);
+    setVideoLoading(true);
+    pendingVideoPlayRef.current = false;
+    video.muted = false;
+    if (video.readyState > HTMLMediaElement.HAVE_NOTHING) video.currentTime = 0;
+    if (video.error || video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) video.load();
+    void video.play().catch(() => {
+      setVideoLoading(false);
+      setVideoError("Playback didn’t start. Check the connection and try again.");
+    });
+  };
+
+  const onFullVideoCanPlay = () => {
+    setVideoError(null);
+    if (!pendingVideoPlayRef.current) return;
+    pendingVideoPlayRef.current = false;
+    const video = fullVideoRef.current;
+    if (video) {
+      void video.play().catch(() => {
+        setVideoLoading(false);
+        setVideoError("Playback didn’t start. Try the play button below.");
+      });
+    }
   };
 
   const closeFullVideo = () => {
     fullVideoRef.current?.pause();
+    pendingVideoPlayRef.current = false;
+    setVideoLoading(false);
+    setVideoError(null);
     setWatchingVideo(false);
     const backgroundVideo = backgroundVideoRef.current;
     if (backgroundVideo) {
@@ -93,6 +138,9 @@ export function HomeHero() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       video.pause();
+      pendingVideoPlayRef.current = false;
+      setVideoLoading(false);
+      setVideoError(null);
       setWatchingVideo(false);
       const backgroundVideo = backgroundVideoRef.current;
       if (backgroundVideo) {
@@ -498,6 +546,7 @@ export function HomeHero() {
           <source src="/videos/tractus-x-community-days.mp4" type="video/mp4" />
         </video>
         <div className="display-dim" aria-hidden="true" />
+        <div className="display-dim-expanded" aria-hidden="true" />
         <div className="floating-accents" aria-hidden="true">
           <span className="floating-plus floating-plus-one" />
           <span className="floating-plus floating-plus-two" />
@@ -521,9 +570,36 @@ export function HomeHero() {
         }}>
           <section className="video-modal" role="dialog" aria-modal="true" aria-label="Complete IMDX video">
             <button className="video-modal-close" type="button" onClick={closeFullVideo} aria-label="Close video">×</button>
-            <video ref={fullVideoRef} className="video-modal-player" controls playsInline preload="auto" onEnded={closeFullVideo}>
+            <video
+              ref={fullVideoRef}
+              className="video-modal-player"
+              controls
+              playsInline
+              preload="auto"
+              onCanPlay={onFullVideoCanPlay}
+              onPlaying={() => { setVideoLoading(false); setVideoError(null); }}
+              onWaiting={() => setVideoLoading(true)}
+              onError={() => {
+                pendingVideoPlayRef.current = false;
+                setVideoLoading(false);
+                setVideoError("The video couldn’t load. Check the connection and retry.");
+              }}
+              onEnded={closeFullVideo}
+            >
               <source src="/videos/tractus-x-community-days.mp4" type="video/mp4" />
             </video>
+            {videoLoading && !videoError && (
+              <div className="video-player-status" role="status">
+                <span className="video-player-spinner" aria-hidden="true" />
+                <span>Loading video…</span>
+              </div>
+            )}
+            {videoError && (
+              <div className="video-player-status video-player-error" role="alert">
+                <p>{videoError}</p>
+                <button type="button" onClick={retryFullVideo}>Try again</button>
+              </div>
+            )}
           </section>
         </div>
       <section className="imdx-page imdx-page-rising" aria-hidden="true">
